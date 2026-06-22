@@ -1,0 +1,8 @@
+parameters:
+    level: max
+    paths:
+        - src
+        - examples/traffic-light/run.php
+        - examples/traffic-light/src
+        - tests
+    tmpDir: var/phpstan

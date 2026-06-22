@@ -1,0 +1,60 @@
+{
+    "name": "chatflowphp/automata",
+    "description": "Framework-agnostic orchestration engine for single-active finite state machines in PHP.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "finite-state-machine",
+        "state-machine",
+        "workflow",
+        "orchestrator",
+        "automata",
+        "fsm",
+        "event-driven"
+    ],
+    "homepage": "https://github.com/chatflowphp/automata",
+    "readme": "README.md",
+    "authors": [
+        {
+            "name": "Alex",
+            "email": "webnarmin@gmail.com",
+            "role": "maintainer",
+            "homepage": "https://github.com/webnarmin"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/chatflowphp/automata/issues",
+        "source": "https://github.com/chatflowphp/automata"
+    },
+    "require": {
+        "php": ">=8.1"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^2.1",
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Automata\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Automata\\": "examples/",
+            "Automata\\Tests\\": "tests/",
+            "AutomataExamples\\TrafficLight\\": "examples/traffic-light/src/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "stan": "phpstan analyse",
+        "check": [
+            "@composer validate",
+            "@stan",
+            "@test"
+        ]
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
