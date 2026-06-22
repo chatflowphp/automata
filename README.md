@@ -1,9 +1,9 @@
 # Automata
 
-[![CI](https://github.com/chatflowphp/automata/workflows/CI/badge.svg)](https://github.com/chatflowphp/automata/actions)
+[![CI](https://github.com/chatflowphp/automata/actions/workflows/ci.yml/badge.svg)](https://github.com/chatflowphp/automata/actions/workflows/ci.yml)
 [![PHPStan](https://img.shields.io/badge/PHPStan-level%209-brightgreen.svg)](https://phpstan.org/)
 [![PHPUnit](https://img.shields.io/badge/PHPUnit-tested-brightgreen.svg)](https://phpunit.de/)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 Framework-agnostic orchestration engine for single-active finite state machines in PHP.
 
