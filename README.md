@@ -21,6 +21,14 @@ Framework-agnostic orchestration engine for single-active finite state machines 
 - No parallel or multi-active automata runtime
 - No built-in persistence transport or async messaging backend
 
+## Start Here
+
+- Build your first automaton: [docs/getting-started.md](docs/getting-started.md)
+- Understand orchestrator semantics: [docs/orchestrator.md](docs/orchestrator.md), [docs/commands-events.md](docs/commands-events.md), [docs/snapshots.md](docs/snapshots.md)
+- Browse extension and reference docs: [docs/context.md](docs/context.md), [docs/extending.md](docs/extending.md), [docs/testing.md](docs/testing.md)
+
+The full documentation hub lives at [docs/index.md](docs/index.md).
+
 ## Requirements
 
 - PHP 8.1 or newer
@@ -76,102 +84,57 @@ $orchestrator->activate('demo');
 $orchestrator->tick(new class implements InputInterface {});
 ```
 
-## Lifecycle
+For the guided beginner path, use [docs/getting-started.md](docs/getting-started.md) and the runnable [simple-workflow](examples/simple-workflow/README.md) example.
 
-- `activate()` resolves the target automaton and calls `onEnter()`
-- `tick()` runs middleware in registration order and then calls `process()` on the active automaton
-- Transition commands call `onLeave()` on the current automaton and `onEnter()` on the next one
-- Self-transition is a no-op for lifecycle hooks
-- `AutomatonActivatedEvent` is emitted after activation
-- `TransitionAppliedEvent` is emitted after a real transition changes the active automaton
+## Reading Order
 
-Use the introspection helpers when needed:
+1. [Documentation Hub](docs/index.md)
+2. [Getting Started](docs/getting-started.md)
+3. [Orchestrator](docs/orchestrator.md)
+4. [Commands And Events](docs/commands-events.md)
+5. [Snapshots](docs/snapshots.md)
+6. [Context](docs/context.md)
+7. [Extending](docs/extending.md)
+8. [Testing](docs/testing.md)
 
-- `getActiveAutomatonId(): ?string`
-- `hasActiveAutomaton(): bool`
-- `hasAutomaton(string $id): bool`
+## Examples
 
-## Transition And Dispatch Semantics
+### Simple Workflow
 
-For each completed `tick()` the orchestrator applies results in this order:
+`simple-workflow` is the shortest runnable example:
 
-1. Process all commands returned by `CycleResponse`
-2. Apply transitions before publishing transition commands to the message bus
-3. Dispatch lifecycle events for applied transitions and activation
-4. Dispatch domain events from `CycleResponse`
-5. Dispatch `CycleCompletedEvent` last
-
-This means event listeners observe the final active automaton and final context state for the tick.
-
-## Snapshot Semantics
-
-Capture state:
-
-```php
-$snapshot = $orchestrator->snapshot();
+```bash
+php examples/simple-workflow/run.php
 ```
 
-Restore state:
+It demonstrates:
 
-```php
-$restoredContext = new ArrayContext();
-$restoredOrchestrator = new Orchestrator($restoredContext);
-$restoredOrchestrator->registerAutomaton($automaton);
-$restoredOrchestrator->activateFromSnapshot($snapshot);
-```
+- `Orchestrator`
+- `ArrayContext`
+- two automata
+- middleware
+- one transition command
+- one domain event
+- one listener
+- snapshot and restore
 
-Serialize externally:
+### Traffic Light
 
-```php
-use Automata\Core\State\JsonSnapshotSerializer;
-
-$serializer = new JsonSnapshotSerializer();
-$payload = $serializer->serialize($snapshot);
-$restored = $serializer->deserialize($payload);
-```
-
-Snapshot restore is strict:
-
-- missing active automaton id causes an exception
-- missing registered automata state handlers cause an exception
-- invalid snapshot structure causes an exception
-
-## State Serialization Rules
-
-Context state and serializable automata state must contain only:
-
-- `null`
-- `bool`
-- `int`
-- `float`
-- `string`
-- arrays composed from the same allowed values
-- `BackedEnum`, which is normalized to its scalar value
-
-Non-backed enums and arbitrary objects are rejected.
-
-## Extension Points
-
-- `CycleMiddlewareInterface` for per-tick cross-cutting behavior
-- `MessageBusInterface` for custom message delivery
-- `SerializableAutomatonInterface` for automata that need snapshot support
-- `SnapshotSerializerInterface` for custom snapshot wire formats
-- `TransitionCommandInterface` for custom transition commands
-
-## Traffic Light Example
-
-The `examples/traffic-light` directory contains a CLI demo that shows:
-
-- three automata connected by transitions
-- middleware-driven tick counting
-- direct domain-event listeners observing state after transitions
-- snapshot save/restore through `StateSnapshot`
-
-Run it with:
+`traffic-light` is the advanced canonical demo:
 
 ```bash
 php examples/traffic-light/run.php
 ```
+
+It demonstrates:
+
+- three automata connected by transitions
+- middleware-driven tick counting
+- domain events observed after transitions
+- lifecycle events
+- snapshot save, restore, and resumed execution
+
+Read [examples/traffic-light/README.md](examples/traffic-light/README.md) after the beginner path.
 
 ## Testing
 

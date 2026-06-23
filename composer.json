@@ -42,6 +42,7 @@
         "psr-4": {
             "Automata\\": "examples/",
             "Automata\\Tests\\": "tests/",
+            "AutomataExamples\\SimpleWorkflow\\": "examples/simple-workflow/src/",
             "AutomataExamples\\TrafficLight\\": "examples/traffic-light/src/"
         }
     },
