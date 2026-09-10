@@ -1,8 +1,11 @@
+includes:
+    - vendor/phpstan/phpstan-strict-rules/rules.neon
+    - vendor/phpstan/phpstan-deprecation-rules/rules.neon
+
 parameters:
     level: max
     paths:
         - src
-        - examples/traffic-light/run.php
-        - examples/traffic-light/src
+        - examples
         - tests
     tmpDir: var/phpstan

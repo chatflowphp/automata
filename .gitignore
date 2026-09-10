@@ -1,7 +1,6 @@
 # IDE and editor files
 /.idea/
 /.vscode/
-/.history/
 /.fleet/
 *.swp
 *.swo
@@ -9,65 +8,29 @@
 
 # OS generated files
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
+
+# Claude Code session state
+/.claude/
 
 # Composer
 /vendor/
 composer.lock
-composer.phar
 
 # PHPUnit
 /.phpunit.cache/
 /.phpunit.result.cache
-/phpunit.xml.bak
 
-# PHP CS Fixer
+# PHP CS Fixer (local override; the dist config is committed)
 .php-cs-fixer.cache
 .php-cs-fixer.php
 
-# Misc tooling
-.phpstorm.meta.php
-
-# Coverage reports
+# Tool output
+/var/
 /coverage/
 clover.xml
-
-# Logs
 *.log
-
-# Temporary files
-/tmp/
-/temp/
-/cache/
-
-# Build artifacts
-/build/
-/dist/
-*.tar.gz
-*.zip
-
-# Dependency directories
-/node_modules/
-/vendor-bin/
 
 # Environment files
 .env
 .env.local
-.env.*.local
-.envrc
-
-# Docker
-/.docker/
-/docker/
-/docker-compose.override.yml
-/docker-compose.local.yml
-
-# Framework specific
-/var/
-/storage/
-/bootstrap/cache/
