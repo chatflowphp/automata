@@ -1,67 +1,44 @@
 # Testing
 
-Automata is easiest to test at three levels:
+## Levels
 
-## 1. Automaton-Level Tests
+| Level | What to assert | Tools |
+| --- | --- | --- |
+| State | The `CycleResponse` returned for a given input and context | `new CycleRequest($input, new ArrayContext([...]))`, call `process()` directly |
+| Machine | Transition order, listener output, rollback, `TickResult` | `StateMachine` with `InMemory` everything |
+| Flow | A whole conversation across requests | `Session`, `InMemorySnapshotStore`, `FrozenClock` |
 
-Test one automaton in isolation when you want to verify:
+## Deterministic time
 
-- how it reacts to a specific input
-- which `CycleResponse` it returns
-- how it mutates context
+Inject `Automata\Clock\FrozenClock` wherever a `ClockInterface` is accepted:
 
-These tests are good for pure state-transition rules.
-
-## 2. Orchestrator Flow Tests
-
-Test `Orchestrator` when you need to verify:
-
-- activation
-- middleware order
-- transition behavior
-- event dispatch after state change
-- introspection helpers
-
-The main reference is [tests/Core/OrchestratorTest.php](../tests/Core/OrchestratorTest.php).
-
-## 3. Snapshot Tests
-
-Test snapshot capture and restore when you depend on:
-
-- `contextState`
-- `fsmAutomatonId`
-- serializable automaton state
-- strict restore failures
-
-Reference tests:
-
-- [tests/Core/State/JsonSnapshotSerializerTest.php](../tests/Core/State/JsonSnapshotSerializerTest.php)
-- [tests/DTO/StateSnapshotTest.php](../tests/DTO/StateSnapshotTest.php)
-
-## Onboarding Example Test
-
-The beginner example is protected by:
-
-- [tests/Examples/SimpleWorkflowApplicationTest.php](../tests/Examples/SimpleWorkflowApplicationTest.php)
-
-It verifies:
-
-- initial activation
-- middleware mutation
-- transition from `idle` to `active`
-- domain event observation after transition
-- snapshot round-trip restore
-
-## Quality Gate
-
-```bash
-composer validate
-composer stan
-composer test
+```php
+$clock = FrozenClock::at('2026-09-10T12:00:00+00:00');
+$machine = new StateMachine($context, clock: $clock);
+$clock->advance('+1 hour');
 ```
 
-Or run the aggregate script:
+## Observing messages
+
+Subscribe an invokable object that records what it receives, or use `TickResult::messagesOf()`:
+
+```php
+$result = $machine->tick($input);
+$replies = array_map(fn (BotReply $r): string => $r->text, $result->messagesOf(BotReply::class));
+```
+
+## Reference tests in this repository
+
+- [tests/Machine/StateMachineTest.php](../tests/Machine/StateMachineTest.php): every runtime rule
+- [tests/Examples/SurveyBotTest.php](../tests/Examples/SurveyBotTest.php): a flow across requests
+- [tests/Snapshot/JsonSnapshotSerializerTest.php](../tests/Snapshot/JsonSnapshotSerializerTest.php): migrations
+
+## Quality gate
 
 ```bash
-composer check
+composer check      # composer validate, php-cs-fixer, phpstan, phpunit
+composer cs:fix     # apply code style
 ```
+
+CI runs the tests on PHP 8.1 through 8.4, static analysis on 8.3, and mutation testing with
+Infection.

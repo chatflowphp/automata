@@ -1,45 +1,40 @@
 # Automata Docs
 
-`chatflowphp/automata` is a small orchestration runtime for single-active finite state machines.
+`chatflowphp/automata` is a small state machine runtime for flows that advance one input at a time
+and must survive between requests: chat dialogs, wizards, approval workflows.
 
-Use this documentation in three modes:
+## Build your first flow
 
-## Build Your First Automaton
-
-Start here if you are new to the library:
-
-1. [Getting Started](getting-started.md)
-2. [simple-workflow example](../examples/simple-workflow/README.md)
+1. [Getting Started](getting-started.md), a survey bot built step by step
+2. [survey-bot example](../examples/survey-bot/README.md), the same flow as runnable code
 3. [Testing](testing.md)
 
-## Understand Orchestrator Semantics
+## Understand the runtime
 
-Use these pages when you want exact runtime behavior:
+- [State Machine](state-machine.md): lifecycle, tick order, atomicity, re-entrancy
+- [States](states.md): `StateInterface`, `AbstractState`, typed input, lifecycle hooks
+- [Transitions](transitions.md): transition tables, guards, introspection, diagrams
+- [Messaging](messaging.md): commands, events, `CycleResponse`, the message bus
+- [Context](context.md): shared state and typed accessors
+- [Snapshots](snapshots.md): schema, versioning, migrations, JSON
+- [Sessions](sessions.md): stores and the request cycle
+- [Middleware](middleware.md): wrapping a tick
 
-1. [Orchestrator](orchestrator.md)
-2. [Commands And Events](commands-events.md)
-3. [Snapshots](snapshots.md)
-4. [Context](context.md)
+## Upgrading
 
-## Extend The Runtime
+- [Upgrade from 1.x](upgrade-from-1.x.md)
 
-Use these pages when you need custom runtime integrations:
+## Public surface
 
-1. [Extending](extending.md)
-2. [Snapshots](snapshots.md)
-3. [Testing](testing.md)
-
-## Public Surface
-
-The most important public concepts are:
-
-- `Automata\Core\Orchestrator`
-- `Automata\Contracts\AutomatonInterface`
-- `Automata\Contracts\ContextInterface`
-- `Automata\Core\Context\ArrayContext`
-- `Automata\Core\CycleRequest`
-- `Automata\Core\CycleResponse`
-- `Automata\DTO\StateSnapshot`
-- `Automata\Core\State\JsonSnapshotSerializer`
-
-For the advanced example, see [traffic-light](../examples/traffic-light/README.md).
+| Concern | Classes |
+| --- | --- |
+| Runtime | `Automata\Machine\StateMachine`, `TickResult`, `CycleRequest`, `CycleResponse`, `InputInterface` |
+| States | `Automata\State\StateInterface`, `AbstractState`, `SerializableStateInterface`, `ResumableStateInterface` |
+| Transitions | `Automata\Machine\Transition\TransitionTable`, `TransitionPolicyInterface`, `AllowAllTransitions` |
+| Messaging | `Automata\Messaging\CommandInterface`, `EventInterface`, `TransitionCommandInterface`, `TransitionCommand`, `MessageBusInterface`, `MessageBus` |
+| Events | `Automata\Events\StateActivated`, `TransitionApplied`, `TickCompleted` |
+| Context | `Automata\Context\ContextInterface`, `ArrayContext`, `ContextAccessorsTrait` |
+| Snapshots | `Automata\Snapshot\StateSnapshot`, `JsonSnapshotSerializer`, `SnapshotMigrationInterface`, `SnapshotStoreInterface`, `InMemorySnapshotStore`, `Session` |
+| Middleware | `Automata\Middleware\TickMiddlewareInterface` |
+| Clock | `Automata\Clock\SystemClock`, `FrozenClock` (implement `Psr\Clock\ClockInterface`) |
+| Exceptions | `Automata\Exception\*`, all extending `AutomataException` |

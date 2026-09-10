@@ -1,67 +1,63 @@
 # Context
 
-`Automata\Contracts\ContextInterface` is the shared state container available to all automata during processing.
+`Automata\Context\ContextInterface` is the shared state visible to every state, middleware, guard,
+and listener. It is captured in every snapshot and rolled back when an operation fails.
 
 ## Contract
 
-The public contract is small:
-
 ```php
 $context->get('key', $default);
+$context->has('key');
 $context->set('key', $value);
-$context->getState();
+$context->remove('key');
+
+$context->getInt('age');                 // 0 when missing or null
+$context->getFloat('ratio', 1.0);
+$context->getString('name', 'anonymous');
+$context->getBool('confirmed');
+$context->getArray('options');
+$context->getList('log');                // [] when missing
+$context->push('log', 'line');           // append to a list
+$context->increment('attempts');         // returns the new value
+
+$context->getState();                    // array<string, mixed>
 $context->setState($state);
 ```
 
-Use context for cross-automaton state that must survive activation changes.
+Typed accessors return the default when the key is missing or holds `null`, and throw
+`ContextTypeException` when the value has a different type. `getFloat()` accepts integers.
 
-## Default Implementation
+## Value rules
 
-`Automata\Core\Context\ArrayContext` is the default implementation:
+Values must survive a JSON round trip:
+
+- `null`, `bool`, `int`, `float`, `string`
+- arrays of those, nested as needed
+- backed enums, which are stored as their backing value
+
+Anything else throws `InvalidStateValueException` on `set()`, so a snapshot can never fail because
+of something stored earlier. Keys must be strings that PHP does not coerce to integers: `'0'` is
+rejected, `'01'` and `'user_0'` are fine.
+
+## ArrayContext
+
+`ArrayContext` is the default in-memory implementation. Pass initial values to the constructor:
 
 ```php
-$context = new ArrayContext([
-    'status' => 'idle',
-]);
+$context = new ArrayContext(['attempts' => 0]);
 ```
 
-It is suitable for examples, tests, and any runtime that can manage persistence outside the library.
+## Custom contexts
 
-## State Shape Rules
+Implement `ContextInterface` when the state lives somewhere else, for example in a session object
+of your framework. `ContextAccessorsTrait` provides every typed accessor on top of `get()` and
+`set()`, so an implementation only needs `get`, `has`, `set`, `remove`, `getState`, and
+`setState`. Apply the same value rules, or reuse `StateNormalizer`.
 
-Context state must be serializable.
+## Context or state data
 
-Allowed values:
-
-- `null`
-- `bool`
-- `int`
-- `float`
-- `string`
-- arrays composed from the same allowed values
-- `BackedEnum`, normalized to its scalar value
-
-Rejected values:
-
-- non-backed enums
-- arbitrary objects
-- resources
-
-## Context vs Automaton Internal State
-
-| Use | Put It In | Why |
-| --- | --- | --- |
-| Shared workflow facts | `ContextInterface` | Multiple automata and listeners may need to read or update it |
-| Automaton-specific restorable data | `SerializableAutomatonInterface` state | The data belongs to one automaton and should be snapshot-aware |
-| Derived output only | Neither, unless it must survive a cycle | Recompute it when needed |
-
-## Snapshot Relationship
-
-`snapshot()` always includes:
-
-- `contextState`
-- `fsmAutomatonId`
-
-It includes automaton internal state only for automata that implement `SerializableAutomatonInterface`.
-
-For restore details, read [Snapshots](snapshots.md).
+| Data | Where |
+| --- | --- |
+| Answers, counters, flags read by several states or listeners | Context |
+| Data owned by exactly one state | `SerializableStateInterface`, see [States](states.md) |
+| Values derived from other data | Recompute; do not store |

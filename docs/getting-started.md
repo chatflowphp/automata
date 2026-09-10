@@ -1,159 +1,129 @@
 # Getting Started
 
-Build your first automaton with the runnable [simple-workflow](../examples/simple-workflow/README.md) example.
+This guide builds the [survey-bot example](../examples/survey-bot/README.md): a bot that asks for a
+name and an age, confirms, and remembers where each chat is between requests.
 
-By the end of this guide you will have:
-
-- one `Orchestrator`
-- one `ArrayContext`
-- two automata: `idle` and `active`
-- one middleware that increments `cycle_count`
-- one domain event listener
-- one snapshot and restore round-trip
-
-Reference files:
-
-- [SimpleWorkflowApplication.php](../examples/simple-workflow/src/Application/SimpleWorkflowApplication.php)
-- [IdleState.php](../examples/simple-workflow/src/States/IdleState.php)
-- [ActiveState.php](../examples/simple-workflow/src/States/ActiveState.php)
-- [CycleCounterMiddleware.php](../examples/simple-workflow/src/Middleware/CycleCounterMiddleware.php)
-- [SimpleWorkflowApplicationTest.php](../tests/Examples/SimpleWorkflowApplicationTest.php)
-
-## 1. Install The Package
+## 1. Install
 
 ```bash
 composer require chatflowphp/automata
 ```
 
-## 2. Create Shared Context And The Orchestrator
+PHP 8.1 or newer. The only runtime dependency is `psr/clock`.
 
-Use `ArrayContext` as the default in-memory implementation of `ContextInterface`:
+## 2. Define the input and the reply
+
+Every tick receives one input. For a bot that is the message text:
 
 ```php
-$context = new ArrayContext([
-    'cycle_count' => 0,
-    'workflow_status' => 'not_started',
-]);
-
-$orchestrator = new Orchestrator($context);
+final class IncomingMessage implements InputInterface
+{
+    public function __construct(public readonly string $text) {}
+}
 ```
 
-Deeper reference: [Context](context.md)
-
-## 3. Implement Two Automata
-
-Implement `AutomatonInterface` and give each automaton a stable id:
+States talk back by emitting an event. The transport layer decides how to deliver it:
 
 ```php
-final class IdleState implements AutomatonInterface
+final class BotReply implements EventInterface
 {
-    public const ID = 'workflow.idle';
+    public function __construct(public readonly string $text) {}
+}
+```
+
+## 3. Write the states
+
+Extend `AbstractState`, declare the input class in `INPUT`, and implement `handle()`.
+`onEnter()` runs when the state becomes current, which is the natural place to ask the question:
+
+```php
+/** @extends AbstractState<IncomingMessage> */
+final class AskNameState extends AbstractState
+{
+    public const ID = 'survey.ask_name';
+    protected const INPUT = IncomingMessage::class;
 
     public function getId(): string
     {
         return self::ID;
     }
-}
-```
 
-In the example:
-
-- `IdleState` handles the first input and requests a transition
-- `ActiveState` becomes the final active automaton and returns `CycleResponse::none()`
-
-Deeper reference: [Orchestrator](orchestrator.md)
-
-## 4. Return A Transition Command And Domain Event
-
-Use `CycleResponse::fromCommand()` to request a transition and `withEvent()` to emit a domain event from the same cycle:
-
-```php
-return CycleResponse::fromCommand(new TransitionCommand(ActiveState::ID))
-    ->withEvent(new WorkflowAdvancedEvent('idle', 'active'));
-```
-
-This is the core runtime pattern:
-
-- commands request actions
-- transition commands change the active automaton
-- events describe what already happened
-
-Deeper reference: [Commands And Events](commands-events.md)
-
-## 5. Add One Middleware
-
-Middleware wraps each `tick()` and can mutate shared context before the active automaton processes the request:
-
-```php
-final class CycleCounterMiddleware implements CycleMiddlewareInterface
-{
-    public function handle(CycleRequest $request, callable $next): CycleResponse
+    public function onEnter(ContextInterface $context): CycleResponse
     {
-        $count = $request->getContext()->get('cycle_count', 0);
-        $request->getContext()->set('cycle_count', $count + 1);
+        return CycleResponse::fromEvent(new BotReply('Hi! What is your name?'));
+    }
 
-        return $next($request);
+    protected function handle(InputInterface $input, ContextInterface $context): CycleResponse
+    {
+        $name = trim($input->text);
+
+        if ($name === '') {
+            return CycleResponse::fromEvent(new BotReply('Please tell me your name.'));
+        }
+
+        $context->set('name', $name);
+
+        return CycleResponse::transitionTo(AskAgeState::ID);
     }
 }
 ```
 
-Deeper reference: [Extending](extending.md)
+Returning `transitionTo()` moves the machine to the next state, whose `onEnter()` asks the next
+question in the same tick. See [States](states.md).
 
-## 6. Subscribe To A Domain Event
+## 4. Declare the allowed transitions
 
-Register a listener directly on the orchestrator:
-
-```php
-$orchestrator->subscribe(WorkflowAdvancedEvent::NAME, function (WorkflowAdvancedEvent $event): void {
-    // react to the already-applied transition
-});
-```
-
-In the example, the listener appends a human-readable line to `transition_log` in context.
-
-## 7. Activate And Tick
-
-Start the workflow with `activate()` and advance it with `tick()`:
+A `TransitionTable` makes illegal jumps impossible and documents the flow. Guards are closures
+over the context:
 
 ```php
-$orchestrator->activate(IdleState::ID);
-$orchestrator->tick(new AdvanceInput('activate-workflow'));
+$transitions = TransitionTable::define([
+    AskNameState::ID => [AskAgeState::ID => fn (ContextInterface $c): bool => $c->getString('name') !== ''],
+    AskAgeState::ID  => [ConfirmState::ID => fn (ContextInterface $c): bool => $c->getInt('age') > 0],
+    ConfirmState::ID => [DoneState::ID, AskNameState::ID],
+    DoneState::ID    => [AskNameState::ID],
+]);
 ```
 
-After the first tick in the example:
+`$transitions->toMermaid()` renders the graph for your README. See [Transitions](transitions.md).
 
-- middleware increments `cycle_count`
-- `IdleState` reads the input and returns a transition command plus event
-- the orchestrator switches to `ActiveState`
-- the event listener sees the already-updated active state
-
-Deeper reference: [Orchestrator](orchestrator.md)
-
-## 8. Snapshot And Restore
-
-Capture a snapshot after processing:
+## 5. Assemble the machine
 
 ```php
-$snapshot = $orchestrator->snapshot();
+$machine = new StateMachine(new ArrayContext(), transitions: $transitions);
+$machine->registerStates(new AskNameState(), new AskAgeState(), new ConfirmState(), new DoneState());
+$machine->subscribe(BotReply::class, $replyCollector);
 ```
 
-Restore it into a fresh application:
+Listeners are subscribed by message class and run after the tick commits, so they always see
+the final state. See [Messaging](messaging.md).
+
+## 6. Handle one request
+
+A webhook handler resumes the chat from a `SnapshotStoreInterface`, applies the message, and
+persists the result:
 
 ```php
-$restored = new SimpleWorkflowApplication();
-$restored->getOrchestrator()->activateFromSnapshot($snapshot);
+$session = Session::resume($store, 'chat:' . $chatId, fn () => $this->buildMachine($replies), AskNameState::ID);
+
+if (!$session->isNew()) {
+    $session->tick(new IncomingMessage($text));
+}
+
+$session->persist();
+
+return $replies->all();
 ```
 
-Deeper reference: [Snapshots](snapshots.md)
+A new chat is started in `survey.ask_name`; its `onEnter()` reply is the greeting. Every later
+request restores the snapshot, ticks once, and saves. See [Sessions](sessions.md).
 
-## 9. Run The Example
+## 7. Run and test
 
 ```bash
-php examples/simple-workflow/run.php
+php examples/survey-bot/run.php
+composer test
 ```
 
-Then inspect the advanced demo:
-
-```bash
-php examples/traffic-light/run.php
-```
+The example test drives a full conversation through an `InMemorySnapshotStore` and a `FrozenClock`.
+See [Testing](testing.md).

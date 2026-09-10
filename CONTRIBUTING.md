@@ -1,59 +1,51 @@
 # Contributing to Automata
 
-Thank you for your interest in contributing to Automata! This document provides guidelines for contributors.
+Thank you for your interest in contributing.
 
-## Development Setup
+## Development setup
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/chatflowphp/automata.git
-   cd automata
-   ```
-
-2. Install dependencies:
-   ```bash
-   composer install
-   ```
-
-## Running Tests
-
-Run the test suite:
 ```bash
-vendor/bin/phpunit
+git clone https://github.com/chatflowphp/automata.git
+cd automata
+composer install
 ```
 
-## Static Analysis
+## Quality gate
 
-Run PHPStan for static analysis:
+Run everything CI runs:
+
 ```bash
-vendor/bin/phpstan analyse
+composer check
 ```
 
-## Code Style
+Individually:
 
-This project follows PSR-12 coding standards. Please ensure your code complies with these standards.
+```bash
+composer cs        # code style (php-cs-fixer, dry run)
+composer cs:fix    # apply code style
+composer stan      # PHPStan, level max with strict rules
+composer test      # PHPUnit
+```
 
-## Submitting Changes
+CI also runs the tests on PHP 8.1 through 8.4 and mutation testing with Infection.
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Make your changes and ensure tests pass
-4. Commit your changes: `git commit -am 'Add some feature'`
-5. Push to the branch: `git push origin feature-name`
-6. Submit a pull request
+## Guidelines
 
-## Bug Reports
+- Every behaviour change comes with a test.
+- Keep the runtime free of dependencies beyond `psr/clock`.
+- Public API changes go into `CHANGELOG.md` under Unreleased.
+- Code style is PER-CS 2.0 with `declare(strict_types=1)`; `composer cs:fix` applies it.
 
-When filing bug reports, please include:
-- PHP version
-- Library version
-- A minimal reproduction case
-- Any error messages or stack traces
+## Submitting changes
 
-## Feature Requests
+1. Fork the repository and create a branch.
+2. Make your changes and run `composer check`.
+3. Open a pull request describing the motivation and the behaviour change.
 
-Feature requests are welcome! Please provide a clear description of the feature you'd like to see and why it would be useful.
+## Bug reports
+
+Include the PHP version, the library version, a minimal reproduction, and the full exception message.
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the MIT License.
+By contributing, you agree that your contributions are licensed under the MIT License.

@@ -1,153 +1,137 @@
 # Automata
 
 [![CI](https://github.com/chatflowphp/automata/actions/workflows/ci.yml/badge.svg)](https://github.com/chatflowphp/automata/actions/workflows/ci.yml)
-[![PHPStan](https://img.shields.io/badge/PHPStan-level%209-brightgreen.svg)](https://phpstan.org/)
-[![PHPUnit](https://img.shields.io/badge/PHPUnit-tested-brightgreen.svg)](https://phpunit.de/)
+[![PHPStan](https://img.shields.io/badge/PHPStan-level%20max-brightgreen.svg)](https://phpstan.org/)
+[![PHP](https://img.shields.io/badge/PHP-8.1%2B-blue.svg)](composer.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Framework-agnostic orchestration engine for single-active finite state machines in PHP.
+A framework-agnostic state machine runtime for flows that advance one input at a time and must
+survive between requests: chat bots, multi-step forms, approval workflows.
 
-## What It Does
+```php
+$session = Session::resume($store, 'chat:' . $chatId, fn () => $this->buildMachine($replies), AskNameState::ID);
 
-- Activates one automaton at a time and drives it through discrete `tick()` cycles
-- Wraps each cycle with optional middleware
-- Dispatches commands and events through a lightweight in-memory message bus
-- Emits lifecycle events for activation and applied transitions
-- Supports snapshot/restore for shared context and serializable automata state
+if (!$session->isNew()) {
+    $session->tick(new IncomingMessage($text));
+}
 
-## What It Does Not Do
+$session->persist();
 
-- No statechart semantics
-- No parallel or multi-active automata runtime
-- No built-in persistence transport or async messaging backend
+return $replies->all();   // ['Nice to meet you, Alice. How old are you?']
+```
 
-## Start Here
+## What you get
 
-- Build your first automaton: [docs/getting-started.md](docs/getting-started.md)
-- Understand orchestrator semantics: [docs/orchestrator.md](docs/orchestrator.md), [docs/commands-events.md](docs/commands-events.md), [docs/snapshots.md](docs/snapshots.md)
-- Browse extension and reference docs: [docs/context.md](docs/context.md), [docs/extending.md](docs/extending.md), [docs/testing.md](docs/testing.md)
+- **States as classes.** Extend `AbstractState`, declare the input type, implement `handle()`.
+  `onEnter()` can reply or chain into the next state.
+- **Declared transitions.** A `TransitionTable` with guards rejects illegal jumps and renders as a
+  Mermaid diagram. Or allow everything and route dynamically.
+- **Atomic ticks.** Context, current state, and state data roll back on any exception. Listeners
+  run after commit and never see a half-applied tick.
+- **Typed messaging.** Commands and events are plain objects; subscribe by class, including
+  interfaces for wildcards.
+- **Versioned snapshots.** JSON with a schema version, migrations, tick counter, and timestamp.
+  `Session` plus `SnapshotStoreInterface` give you the request cycle in three lines.
+- **Middleware around the whole tick**, for transactions, persistence, or tracing.
 
-The full documentation hub lives at [docs/index.md](docs/index.md).
+## What it is not
 
-## Requirements
+- Not a statechart engine: no parallel regions, no history states.
+- Not a message transport: the bus is synchronous and in-process.
+- Not a persistence layer: bring your own `SnapshotStoreInterface`.
 
-- PHP 8.1 or newer
-- Composer
-
-## Installation
+## Install
 
 ```bash
 composer require chatflowphp/automata
 ```
 
-## Quick Start
+PHP 8.1 or newer. The only runtime dependency is `psr/clock`.
+
+## A state
 
 ```php
-<?php
+/** @extends AbstractState<IncomingMessage> */
+final class AskAgeState extends AbstractState
+{
+    public const ID = 'survey.ask_age';
+    protected const INPUT = IncomingMessage::class;
 
-use Automata\Contracts\AutomatonInterface;
-use Automata\Contracts\ContextInterface;
-use Automata\Contracts\InputInterface;
-use Automata\Core\Context\ArrayContext;
-use Automata\Core\CycleRequest;
-use Automata\Core\CycleResponse;
-use Automata\Core\Orchestrator;
-
-$context = new ArrayContext();
-
-$automaton = new class implements AutomatonInterface {
     public function getId(): string
     {
-        return 'demo';
+        return self::ID;
     }
 
-    public function onEnter(ContextInterface $context): void
+    public function onEnter(ContextInterface $context): CycleResponse
     {
-        $context->set('status', 'idle');
+        return CycleResponse::fromEvent(new BotReply(sprintf('Nice to meet you, %s. How old are you?', $context->getString('name'))));
     }
 
-    public function process(CycleRequest $request): CycleResponse
+    protected function handle(InputInterface $input, ContextInterface $context): CycleResponse
     {
-        $request->getContext()->set('status', 'processed');
+        if (!ctype_digit($input->text)) {
+            return CycleResponse::fromEvent(new BotReply('Please enter a number.'));
+        }
 
-        return CycleResponse::none();
+        $context->set('age', (int) $input->text);
+
+        return CycleResponse::transitionTo(ConfirmState::ID);
     }
-
-    public function onLeave(ContextInterface $context): void
-    {
-    }
-};
-
-$orchestrator = new Orchestrator($context);
-$orchestrator->registerAutomaton($automaton);
-$orchestrator->activate('demo');
-$orchestrator->tick(new class implements InputInterface {});
+}
 ```
 
-For the guided beginner path, use [docs/getting-started.md](docs/getting-started.md) and the runnable [simple-workflow](examples/simple-workflow/README.md) example.
+## A machine
 
-## Reading Order
+```php
+$machine = new StateMachine(new ArrayContext(), transitions: TransitionTable::define([
+    AskNameState::ID => [AskAgeState::ID],
+    AskAgeState::ID  => [ConfirmState::ID => fn (ContextInterface $c): bool => $c->getInt('age') > 0],
+    ConfirmState::ID => [DoneState::ID, AskNameState::ID],
+]));
 
-1. [Documentation Hub](docs/index.md)
-2. [Getting Started](docs/getting-started.md)
-3. [Orchestrator](docs/orchestrator.md)
-4. [Commands And Events](docs/commands-events.md)
-5. [Snapshots](docs/snapshots.md)
-6. [Context](docs/context.md)
-7. [Extending](docs/extending.md)
-8. [Testing](docs/testing.md)
+$machine->registerStates(new AskNameState(), new AskAgeState(), new ConfirmState(), new DoneState());
+$machine->subscribe(BotReply::class, $replies);
+
+$machine->start(AskNameState::ID);          // "Hi! What is your name?"
+$result = $machine->tick(new IncomingMessage('Alice'));
+
+$result->toStateId;                          // survey.ask_age
+$result->messagesOf(BotReply::class);        // the question asked by the new state
+```
+
+## Documentation
+
+Start at the [documentation hub](docs/index.md):
+
+- [Getting Started](docs/getting-started.md), the survey bot step by step
+- [State Machine](docs/state-machine.md), [States](docs/states.md), [Transitions](docs/transitions.md)
+- [Messaging](docs/messaging.md), [Context](docs/context.md), [Middleware](docs/middleware.md)
+- [Snapshots](docs/snapshots.md), [Sessions](docs/sessions.md), [Testing](docs/testing.md)
+- [Upgrade from 1.x](docs/upgrade-from-1.x.md)
 
 ## Examples
 
-### Simple Workflow
-
-`simple-workflow` is the shortest runnable example:
-
-```bash
-php examples/simple-workflow/run.php
-```
-
-It demonstrates:
-
-- `Orchestrator`
-- `ArrayContext`
-- two automata
-- middleware
-- one transition command
-- one domain event
-- one listener
-- snapshot and restore
-
-### Traffic Light
-
-`traffic-light` is the advanced canonical demo:
+| Example | Shows |
+| --- | --- |
+| [survey-bot](examples/survey-bot/README.md) | The canonical chat flow: sessions, snapshot store, guards, replies from `onEnter()` |
+| [simple-workflow](examples/simple-workflow/README.md) | The smallest machine: two states, middleware, one event, snapshot round trip |
+| [traffic-light](examples/traffic-light/README.md) | Declared transition graph, shared state base class, injected clock, resumed execution |
 
 ```bash
-php examples/traffic-light/run.php
+php examples/survey-bot/run.php
 ```
 
-It demonstrates:
-
-- three automata connected by transitions
-- middleware-driven tick counting
-- domain events observed after transitions
-- lifecycle events
-- snapshot save, restore, and resumed execution
-
-Read [examples/traffic-light/README.md](examples/traffic-light/README.md) after the beginner path.
-
-## Testing
+## Development
 
 ```bash
-composer test
+composer check   # validate, code style, phpstan, tests
 ```
 
-Full local quality gate:
+## Versioning
 
-```bash
-composer check
-```
+2.0 is a rewrite of 1.x with a new API. See [CHANGELOG.md](CHANGELOG.md) and the
+[upgrade guide](docs/upgrade-from-1.x.md). Snapshots written by 1.x can be migrated.
 
 ## License
 
-This project is released under the MIT License. See `LICENSE` for details.
+MIT, see [LICENSE](LICENSE).
