@@ -4,71 +4,73 @@ declare(strict_types=1);
 
 namespace AutomataExamples\TrafficLight\Application;
 
-use Automata\Core\Orchestrator;
-use Automata\Events\CycleCompletedEvent;
+use Automata\Clock\SystemClock;
+use Automata\Context\ArrayContext;
+use Automata\Events\TickCompleted;
+use Automata\Machine\StateMachine;
+use Automata\Machine\Transition\TransitionTable;
 use AutomataExamples\TrafficLight\Enum\TrafficLightStatus;
-use AutomataExamples\TrafficLight\Event\LightColorChangedEvent;
+use AutomataExamples\TrafficLight\Event\LightColorChanged;
 use AutomataExamples\TrafficLight\Listener\ChangeColorListener;
-use AutomataExamples\TrafficLight\Listener\CycleResponseListener;
+use AutomataExamples\TrafficLight\Listener\TickReporter;
 use AutomataExamples\TrafficLight\Middleware\CycleCounterMiddleware;
+use AutomataExamples\TrafficLight\Output;
 use AutomataExamples\TrafficLight\States\GreenLightState;
 use AutomataExamples\TrafficLight\States\RedLightState;
 use AutomataExamples\TrafficLight\States\YellowLightState;
 use AutomataExamples\TrafficLight\TimerInput;
-use AutomataExamples\TrafficLight\TrafficLightContext;
+use Psr\Clock\ClockInterface;
 
 final class TrafficLightApplication
 {
-    private TrafficLightContext $context;
-    private Orchestrator $orchestrator;
-    private ResponseSimple $response;
+    private readonly ArrayContext $context;
 
-    public function __construct(?ResponseSimple $response = null)
-    {
-        $this->response = $response ?? new ResponseSimple();
-        $this->context = new TrafficLightContext();
-        $this->context->set('total_ticks', 0);
-        $this->orchestrator = new Orchestrator($this->context);
+    private readonly StateMachine $machine;
 
-        $this->registerAutomata();
-        $this->registerListeners();
+    private readonly TransitionTable $transitions;
+
+    public function __construct(
+        private readonly Output $output = new Output(),
+        ClockInterface $clock = new SystemClock(),
+    ) {
+        $this->context = new ArrayContext(['total_ticks' => 0]);
+        $this->transitions = TransitionTable::define([
+            TrafficLightStatus::RED->value => [TrafficLightStatus::GREEN->value],
+            TrafficLightStatus::GREEN->value => [TrafficLightStatus::YELLOW->value],
+            TrafficLightStatus::YELLOW->value => [TrafficLightStatus::RED->value],
+        ]);
+        $this->machine = new StateMachine($this->context, transitions: $this->transitions, clock: $clock);
+
+        $this->machine->registerMiddleware(new CycleCounterMiddleware());
+        $this->machine->registerStates(new RedLightState(), new GreenLightState(), new YellowLightState());
+        $this->machine->subscribe(LightColorChanged::class, new ChangeColorListener($this->output, $this->context, $clock));
+        $this->machine->subscribe(TickCompleted::class, new TickReporter($this->output));
     }
 
-    public function run(int $ticks): void
+    public function start(): void
     {
-        $this->orchestrator->activate(TrafficLightStatus::RED->value);
-        for ($tick = 0; $tick <= $ticks; $tick++) {
-            $this->orchestrator->tick(new TimerInput($tick));
+        $this->machine->start(TrafficLightStatus::RED->value);
+    }
+
+    public function runTicks(int $from, int $to): void
+    {
+        for ($tick = $from; $tick <= $to; $tick++) {
+            $this->machine->tick(new TimerInput($tick));
         }
     }
 
-    public function getContext(): TrafficLightContext
+    public function getMachine(): StateMachine
     {
-        return $this->context;
+        return $this->machine;
     }
 
-    public function getOrchestrator(): Orchestrator
+    public function getOutput(): Output
     {
-        return $this->orchestrator;
+        return $this->output;
     }
 
-    private function registerAutomata(): void
+    public function getTransitions(): TransitionTable
     {
-        $this->orchestrator->registerMiddleware(new CycleCounterMiddleware());
-        $this->orchestrator->registerAutomaton(new RedLightState());
-        $this->orchestrator->registerAutomaton(new GreenLightState());
-        $this->orchestrator->registerAutomaton(new YellowLightState());
-    }
-
-    private function registerListeners(): void
-    {
-        $this->orchestrator->subscribe(
-            LightColorChangedEvent::NAME,
-            new ChangeColorListener($this->response, $this->context)
-        );
-        $this->orchestrator->subscribe(
-            CycleCompletedEvent::NAME,
-            new CycleResponseListener($this->response)
-        );
+        return $this->transitions;
     }
 }

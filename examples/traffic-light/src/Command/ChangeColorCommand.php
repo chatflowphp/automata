@@ -4,34 +4,18 @@ declare(strict_types=1);
 
 namespace AutomataExamples\TrafficLight\Command;
 
-use Automata\Contracts\TransitionCommandInterface;
-use Automata\Messages\AbstractCommand;
+use Automata\Messaging\TransitionCommandInterface;
+use AutomataExamples\TrafficLight\Enum\TrafficLightStatus;
 
-final class ChangeColorCommand extends AbstractCommand implements TransitionCommandInterface
+/**
+ * A domain command that is also a transition: the machine switches state, then dispatches it.
+ */
+final class ChangeColorCommand implements TransitionCommandInterface
 {
-    public const NAME = 'traffic_light.change_color';
+    public function __construct(public readonly TrafficLightStatus $to) {}
 
-    public function __construct(
-        private readonly string $color,
-        private readonly string $nextAutomatonId
-    ) {
-    }
-
-    public function getPayload(): mixed
+    public function getTargetStateId(): string
     {
-        return [
-            'color' => $this->color,
-            'next_automaton_id' => $this->nextAutomatonId,
-        ];
-    }
-
-    public function getColor(): string
-    {
-        return $this->color;
-    }
-
-    public function getNextAutomatonId(): string
-    {
-        return $this->nextAutomatonId;
+        return $this->to->value;
     }
 }

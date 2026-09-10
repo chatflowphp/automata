@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace AutomataExamples\TrafficLight\Enum;
 
-/**
- * Enumerates traffic light states with helpers for color and transitions.
- */
 enum TrafficLightStatus: string
 {
     case RED = 'traffic_light.red';
@@ -19,6 +16,27 @@ enum TrafficLightStatus: string
             self::RED => 'red',
             self::GREEN => 'green',
             self::YELLOW => 'yellow',
+        };
+    }
+
+    public function next(): self
+    {
+        return match ($this) {
+            self::RED => self::GREEN,
+            self::GREEN => self::YELLOW,
+            self::YELLOW => self::RED,
+        };
+    }
+
+    /**
+     * How many ticks the light stays on before switching.
+     */
+    public function duration(): int
+    {
+        return match ($this) {
+            self::RED => 2,
+            self::GREEN => 2,
+            self::YELLOW => 1,
         };
     }
 }

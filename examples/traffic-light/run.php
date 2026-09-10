@@ -2,47 +2,35 @@
 
 declare(strict_types=1);
 
-use AutomataExamples\TrafficLight\Application\ResponseSimple;
+use Automata\Snapshot\JsonSnapshotSerializer;
 use AutomataExamples\TrafficLight\Application\TrafficLightApplication;
-use AutomataExamples\TrafficLight\Enum\TrafficLightStatus;
-use AutomataExamples\TrafficLight\TimerInput;
+use AutomataExamples\TrafficLight\Output;
 
 require __DIR__ . '/../../vendor/autoload.php';
 
-$response = new ResponseSimple();
+$output = new Output();
+$serializer = new JsonSnapshotSerializer(encodeFlags: JSON_PRETTY_PRINT);
 
-$totalTicks = 8;
-$saveAfterTick = 4;
+$output->add('=== Transition graph (Mermaid) ===');
+$application = new TrafficLightApplication($output);
+$output->add(rtrim($application->getTransitions()->toMermaid()));
+$output->add('');
 
-$response->add('=== Initial execution ===');
-$application = new TrafficLightApplication($response);
-$orchestrator = $application->getOrchestrator();
+$output->add('=== Initial run: ticks 1-5 ===');
+$application->start();
+$application->runTicks(1, 5);
 
-$orchestrator->activate(TrafficLightStatus::RED->value);
-for ($tick = 0; $tick <= $saveAfterTick; $tick++) {
-    $orchestrator->tick(new TimerInput($tick));
-}
+$payload = $serializer->serialize($application->getMachine()->snapshot());
+$output->add('');
+$output->add('=== Snapshot after tick 5 ===');
+$output->add($payload);
+$output->add('');
 
-$snapshot = $orchestrator->snapshot();
-$response->add('');
-$response->add(sprintf(
-    "=== Snapshot saved after tick %d (active automaton: %s) ===",
-    $saveAfterTick,
-    $snapshot->fsmAutomatonId ?? 'unknown'
-));
-$response->add('');
-$response->add('=== Restored execution ===');
+$output->add('=== Restored run: ticks 6-9 ===');
+$restored = new TrafficLightApplication($output);
+$restored->getMachine()->restore($serializer->deserialize($payload));
+$restored->runTicks(6, 9);
 
-$restoredApplication = new TrafficLightApplication($response);
-$restoredOrchestrator = $restoredApplication->getOrchestrator();
-$restoredOrchestrator->activateFromSnapshot($snapshot);
-
-$resumeTick = $saveAfterTick + 1;
-for ($tick = $resumeTick; $tick <= $totalTicks; $tick++) {
-    $restoredOrchestrator->tick(new TimerInput($tick));
-}
-
-$response->add('');
-$response->add('Simulation complete.');
-
-$response->output();
+$output->add('');
+$output->add('Simulation complete.');
+$output->print();

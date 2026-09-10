@@ -2,53 +2,46 @@
 
 declare(strict_types=1);
 
-use Automata\Core\State\JsonSnapshotSerializer;
+use Automata\Snapshot\JsonSnapshotSerializer;
 use AutomataExamples\SimpleWorkflow\AdvanceInput;
 use AutomataExamples\SimpleWorkflow\Application\SimpleWorkflowApplication;
 use AutomataExamples\SimpleWorkflow\States\IdleState;
 
 require __DIR__ . '/../../vendor/autoload.php';
 
-/**
- * @param list<string> $transitionLog
- */
-function printWorkflowState(
-    string $title,
-    SimpleWorkflowApplication $application,
-    array $transitionLog
-): void {
-    $orchestrator = $application->getOrchestrator();
+function printWorkflowState(string $title, SimpleWorkflowApplication $application): void
+{
+    $machine = $application->getMachine();
     $context = $application->getContext();
 
     echo $title . PHP_EOL;
-    printf("Active automaton: %s\n", $orchestrator->getActiveAutomatonId() ?? 'none');
+    printf("Current state: %s\n", $machine->getCurrentStateId() ?? 'none');
     printf("Workflow status: %s\n", $application->workflowStatus());
     printf("Cycle count: %d\n", $application->cycleCount());
+    printf("Last input reason: %s\n", $context->getString('last_input_reason', 'none'));
 
-    $lastInputReason = $context->get('last_input_reason', 'none');
-    printf("Last input reason: %s\n", is_string($lastInputReason) ? $lastInputReason : 'none');
-
-    foreach ($transitionLog as $line) {
+    foreach ($application->transitionLog() as $line) {
         printf("Transition log: %s\n", $line);
     }
 }
 
 $application = new SimpleWorkflowApplication();
-$orchestrator = $application->getOrchestrator();
-$orchestrator->activate(IdleState::ID);
+$machine = $application->getMachine();
+$machine->start(IdleState::ID);
 
-printWorkflowState('=== Initial execution ===', $application, $application->transitionLog());
+printWorkflowState('=== Initial execution ===', $application);
 echo PHP_EOL;
 
-$orchestrator->tick(new AdvanceInput('activate-workflow'));
-printWorkflowState('=== After first tick ===', $application, $application->transitionLog());
+$result = $machine->tick(new AdvanceInput('activate-workflow'));
+printWorkflowState('=== After first tick ===', $application);
+printf("Transitioned: %s (%s -> %s)\n", $result->transitioned() ? 'yes' : 'no', $result->fromStateId, $result->toStateId);
 echo PHP_EOL;
 
-$serializer = new JsonSnapshotSerializer();
-$snapshot = $orchestrator->snapshot();
+$serializer = new JsonSnapshotSerializer(encodeFlags: JSON_PRETTY_PRINT);
+$snapshot = $machine->snapshot();
 echo "=== Snapshot JSON ===\n";
 echo $serializer->serialize($snapshot) . PHP_EOL . PHP_EOL;
 
 $restoredApplication = new SimpleWorkflowApplication();
-$restoredApplication->getOrchestrator()->activateFromSnapshot($snapshot);
-printWorkflowState('=== Restored execution ===', $restoredApplication, $restoredApplication->transitionLog());
+$restoredApplication->getMachine()->restore($serializer->deserialize($serializer->serialize($snapshot)));
+printWorkflowState('=== Restored execution ===', $restoredApplication);

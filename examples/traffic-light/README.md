@@ -1,50 +1,30 @@
-# Traffic Light Demo
+# Traffic Light Example
 
-This is the advanced canonical example for `chatflowphp/automata`.
+The classic state-machine demo, used here to show the runtime features that the simple workflow
+does not need:
 
-If you are new to the library, start with [docs/getting-started.md](../../docs/getting-started.md) and the [simple-workflow](../simple-workflow/README.md) example first.
+- a declared `TransitionTable` (red -> green -> yellow -> red) rendered as a Mermaid diagram
+- three states sharing one `AbstractState` subclass (`LightState`)
+- a domain command that is also a transition (`ChangeColorCommand`)
+- a listener that observes the committed context after the transition
+- `TickCompleted` for per-tick reporting
+- a clock injected through `Psr\Clock\ClockInterface` so output is deterministic in tests
+- snapshot, JSON round trip, and resumed execution in a fresh application instance
 
-## What This Example Covers
+```mermaid
+stateDiagram-v2
+    state "traffic_light.red" as traffic_light_red
+    state "traffic_light.green" as traffic_light_green
+    state "traffic_light.yellow" as traffic_light_yellow
+    traffic_light_red --> traffic_light_green
+    traffic_light_green --> traffic_light_yellow
+    traffic_light_yellow --> traffic_light_red
+```
 
-`traffic-light` demonstrates the richer runtime model:
-
-- three automata connected by transitions
-- middleware around every tick
-- domain events observed after transitions
-- lifecycle events emitted by the orchestrator
-- strict snapshot save, restore, and resumed execution
-
-## Runtime Flow
-
-1. `TrafficLightApplication` creates `TrafficLightContext`, `Orchestrator`, middleware, listeners, and three automata.
-2. `Orchestrator::activate()` starts the red-light automaton and calls `onEnter()`.
-3. Each `tick()` increments `total_ticks` through middleware and then runs the active automaton.
-4. When an automaton decides to switch, it returns a `ChangeColorCommand` plus a `LightColorChangedEvent`.
-5. The orchestrator applies the transition first, dispatches lifecycle events, dispatches the command, dispatches the domain event, and emits `CycleCompletedEvent` last.
-
-Because domain events are dispatched after the transition, the `ChangeColorListener` can read the already-updated context and confirm which automaton is active now.
-
-## Components
-
-- `CycleCounterMiddleware` increments `total_ticks`
-- `RedLightState`, `GreenLightState`, `YellowLightState` implement the workflow
-- `ChangeColorListener` reacts to the domain event after transition completion
-- `CycleResponseListener` reacts to `CycleCompletedEvent` for per-tick output
-- `run.php` demonstrates snapshot export, restore, and resumed execution
-
-The runtime also emits `TransitionAppliedEvent` and `AutomatonActivatedEvent` when consumers need lifecycle-level observability.
-
-## Snapshot Notes
-
-The example uses `Orchestrator::snapshot()` and `activateFromSnapshot()` directly. For external persistence, use `JsonSnapshotSerializer` to convert the produced `StateSnapshot` to and from JSON.
-
-Deeper reference:
-
-- [docs/orchestrator.md](../../docs/orchestrator.md)
-- [docs/snapshots.md](../../docs/snapshots.md)
-
-## Run
+Run it with:
 
 ```bash
 php examples/traffic-light/run.php
 ```
+
+Read [docs/transitions.md](../../docs/transitions.md) and [docs/snapshots.md](../../docs/snapshots.md) for the concepts used here.

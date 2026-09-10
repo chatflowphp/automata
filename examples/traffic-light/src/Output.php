@@ -2,9 +2,12 @@
 
 declare(strict_types=1);
 
-namespace AutomataExamples\TrafficLight\Application;
+namespace AutomataExamples\TrafficLight;
 
-final class ResponseSimple
+/**
+ * Collects output lines so the example can be asserted in tests and printed in run.php.
+ */
+final class Output
 {
     /**
      * @var list<string>
@@ -24,10 +27,10 @@ final class ResponseSimple
         return $this->lines;
     }
 
-    public function output(): void
+    public function print(): void
     {
         foreach ($this->lines as $line) {
-            echo $line === '' ? PHP_EOL : $line . PHP_EOL;
+            echo $line . PHP_EOL;
         }
     }
 }

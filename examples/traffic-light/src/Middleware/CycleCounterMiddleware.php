@@ -4,21 +4,15 @@ declare(strict_types=1);
 
 namespace AutomataExamples\TrafficLight\Middleware;
 
-use Automata\Contracts\CycleMiddlewareInterface;
-use Automata\Core\CycleRequest;
-use Automata\Core\CycleResponse;
+use Automata\Machine\CycleRequest;
+use Automata\Machine\TickResult;
+use Automata\Middleware\TickMiddlewareInterface;
 
-final class CycleCounterMiddleware implements CycleMiddlewareInterface
+final class CycleCounterMiddleware implements TickMiddlewareInterface
 {
-    public function handle(CycleRequest $request, callable $next): CycleResponse
+    public function handle(CycleRequest $request, callable $next): TickResult
     {
-        $context = $request->getContext();
-        $ticks = $context->get('total_ticks');
-        if (!is_int($ticks)) {
-            $ticks = 0;
-        }
-
-        $context->set('total_ticks', $ticks + 1);
+        $request->getContext()->increment('total_ticks');
 
         return $next($request);
     }

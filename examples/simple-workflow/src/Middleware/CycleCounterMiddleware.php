@@ -4,21 +4,15 @@ declare(strict_types=1);
 
 namespace AutomataExamples\SimpleWorkflow\Middleware;
 
-use Automata\Contracts\CycleMiddlewareInterface;
-use Automata\Core\CycleRequest;
-use Automata\Core\CycleResponse;
+use Automata\Machine\CycleRequest;
+use Automata\Machine\TickResult;
+use Automata\Middleware\TickMiddlewareInterface;
 
-final class CycleCounterMiddleware implements CycleMiddlewareInterface
+final class CycleCounterMiddleware implements TickMiddlewareInterface
 {
-    public function handle(CycleRequest $request, callable $next): CycleResponse
+    public function handle(CycleRequest $request, callable $next): TickResult
     {
-        $context = $request->getContext();
-        $count = $context->get('cycle_count', 0);
-        if (!is_int($count)) {
-            $count = 0;
-        }
-
-        $context->set('cycle_count', $count + 1);
+        $request->getContext()->increment('cycle_count');
 
         return $next($request);
     }

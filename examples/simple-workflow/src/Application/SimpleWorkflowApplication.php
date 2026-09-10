@@ -4,43 +4,39 @@ declare(strict_types=1);
 
 namespace AutomataExamples\SimpleWorkflow\Application;
 
-use Automata\Core\Context\ArrayContext;
-use Automata\Core\Orchestrator;
-use AutomataExamples\SimpleWorkflow\Event\WorkflowAdvancedEvent;
+use Automata\Context\ArrayContext;
+use Automata\Machine\StateMachine;
+use AutomataExamples\SimpleWorkflow\Event\WorkflowAdvanced;
 use AutomataExamples\SimpleWorkflow\Middleware\CycleCounterMiddleware;
 use AutomataExamples\SimpleWorkflow\States\ActiveState;
 use AutomataExamples\SimpleWorkflow\States\IdleState;
+use Psr\Clock\ClockInterface;
 
 final class SimpleWorkflowApplication
 {
-    private ArrayContext $context;
+    private readonly ArrayContext $context;
 
-    private Orchestrator $orchestrator;
+    private readonly StateMachine $machine;
 
-    public function __construct()
+    public function __construct(?ClockInterface $clock = null)
     {
         $this->context = new ArrayContext([
             'cycle_count' => 0,
             'workflow_status' => 'not_started',
-            'transition_log' => [],
         ]);
-        $this->orchestrator = new Orchestrator($this->context);
+        $this->machine = new StateMachine($this->context, clock: $clock);
 
-        $this->orchestrator->registerMiddleware(new CycleCounterMiddleware());
-        $this->orchestrator->registerAutomaton(new IdleState());
-        $this->orchestrator->registerAutomaton(new ActiveState());
+        $this->machine->registerMiddleware(new CycleCounterMiddleware());
+        $this->machine->registerStates(new IdleState(), new ActiveState());
 
-        $this->orchestrator->subscribe(WorkflowAdvancedEvent::NAME, function (WorkflowAdvancedEvent $event): void {
-            $log = $this->transitionLog();
-            $log[] = sprintf(
-                '%s->%s|active=%s|cycles=%d',
+        $this->machine->subscribe(WorkflowAdvanced::class, function (WorkflowAdvanced $event): void {
+            $this->context->push('transition_log', \sprintf(
+                '%s->%s|current=%s|cycles=%d',
                 $event->fromState,
                 $event->toState,
-                $this->orchestrator->getActiveAutomatonId() ?? 'none',
-                $this->cycleCount()
-            );
-
-            $this->context->set('transition_log', $log);
+                $this->machine->getCurrentStateId() ?? 'none',
+                $this->context->getInt('cycle_count'),
+            ));
         });
     }
 
@@ -49,23 +45,19 @@ final class SimpleWorkflowApplication
         return $this->context;
     }
 
-    public function getOrchestrator(): Orchestrator
+    public function getMachine(): StateMachine
     {
-        return $this->orchestrator;
+        return $this->machine;
     }
 
     public function cycleCount(): int
     {
-        $count = $this->context->get('cycle_count', 0);
-
-        return is_int($count) ? $count : 0;
+        return $this->context->getInt('cycle_count');
     }
 
     public function workflowStatus(): string
     {
-        $status = $this->context->get('workflow_status', 'unknown');
-
-        return is_string($status) ? $status : 'unknown';
+        return $this->context->getString('workflow_status', 'unknown');
     }
 
     /**
@@ -73,14 +65,6 @@ final class SimpleWorkflowApplication
      */
     public function transitionLog(): array
     {
-        $log = $this->context->get('transition_log', []);
-        if (!is_array($log)) {
-            return [];
-        }
-
-        return array_values(array_map(
-            static fn (mixed $item): string => is_string($item) ? $item : 'invalid',
-            $log
-        ));
+        return array_values(array_filter($this->context->getList('transition_log'), 'is_string'));
     }
 }

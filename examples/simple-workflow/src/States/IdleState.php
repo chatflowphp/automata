@@ -4,41 +4,39 @@ declare(strict_types=1);
 
 namespace AutomataExamples\SimpleWorkflow\States;
 
-use Automata\Contracts\AutomatonInterface;
-use Automata\Contracts\ContextInterface;
-use Automata\Core\CycleRequest;
-use Automata\Core\CycleResponse;
-use Automata\Messages\TransitionCommand;
+use Automata\Context\ContextInterface;
+use Automata\Machine\CycleResponse;
+use Automata\Machine\InputInterface;
+use Automata\State\AbstractState;
 use AutomataExamples\SimpleWorkflow\AdvanceInput;
-use AutomataExamples\SimpleWorkflow\Event\WorkflowAdvancedEvent;
+use AutomataExamples\SimpleWorkflow\Event\WorkflowAdvanced;
 
-final class IdleState implements AutomatonInterface
+/**
+ * @extends AbstractState<AdvanceInput>
+ */
+final class IdleState extends AbstractState
 {
     public const ID = 'workflow.idle';
+
+    protected const INPUT = AdvanceInput::class;
 
     public function getId(): string
     {
         return self::ID;
     }
 
-    public function onEnter(ContextInterface $context): void
+    public function onEnter(ContextInterface $context): CycleResponse
     {
         $context->set('workflow_status', 'idle');
-        $context->set('active_state_label', self::ID);
+
+        return CycleResponse::none();
     }
 
-    public function process(CycleRequest $request): CycleResponse
+    protected function handle(InputInterface $input, ContextInterface $context): CycleResponse
     {
-        $input = $request->getInput();
-        if ($input instanceof AdvanceInput) {
-            $request->getContext()->set('last_input_reason', $input->getReason());
-        }
+        $context->set('last_input_reason', $input->reason);
 
-        return CycleResponse::fromCommand(new TransitionCommand(ActiveState::ID))
-            ->withEvent(new WorkflowAdvancedEvent('idle', 'active'));
-    }
-
-    public function onLeave(ContextInterface $context): void
-    {
+        return CycleResponse::transitionTo(ActiveState::ID)
+            ->withEvent(new WorkflowAdvanced('idle', 'active'));
     }
 }

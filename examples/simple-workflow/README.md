@@ -1,17 +1,17 @@
 # Simple Workflow Example
 
-This is the shortest runnable example in the repository.
+The shortest runnable example in the repository: two states, one middleware, one event listener,
+one snapshot round trip.
 
 It demonstrates:
 
-- `Orchestrator`
-- `ArrayContext`
-- two automata: `idle` and `active`
-- one middleware that increments `cycle_count`
-- one transition command returned through `CycleResponse::fromCommand()`
-- one domain event appended through `withEvent()`
-- one listener registered through `Orchestrator::subscribe()`
-- one snapshot and restore round-trip
+- `StateMachine` and `ArrayContext`
+- two states built on `AbstractState` with a typed input (`AdvanceInput`)
+- `onEnter()` writing to context
+- a tick middleware that increments `cycle_count`
+- a transition plus a domain event returned from one `CycleResponse`
+- a listener subscribed by event class
+- `snapshot()`, `JsonSnapshotSerializer`, and `restore()`
 
 Run it with:
 
@@ -19,4 +19,4 @@ Run it with:
 php examples/simple-workflow/run.php
 ```
 
-If you want the guided tutorial, start with [docs/getting-started.md](../../docs/getting-started.md).
+The guided tutorial that walks through this code lives in [docs/getting-started.md](../../docs/getting-started.md).
