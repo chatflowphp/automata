@@ -6,7 +6,7 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-## [2.0.0-rc1] - 2026-09-12
+## [2.0.0] - 2026-09-12
 
 A rewrite. See [docs/upgrade-from-1.x.md](docs/upgrade-from-1.x.md) for the full mapping.
 
